@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>합격 기업 선택</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #16181d; --mute: #6b7280; --line: #e5e7eb;
+    --accent: #2563eb; --accent-ink: #ffffff; --sel: #eff5ff; --err: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111317; --card: #1a1d23; --ink: #eceef2; --mute: #9aa1ad; --line: #2b3038;
+      --accent: #5b8def; --accent-ink: #0b0d10; --sel: #1d2a44; --err: #ff8a80; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 32px 16px 120px; }
+  h1 { font-size: 22px; line-height: 1.35; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .lead { color: var(--mute); margin: 0 0 24px; font-size: 15px; }
+  .list { display: grid; gap: 10px; }
+  label.item { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+  label.item:has(input:checked) { border-color: var(--accent); background: var(--sel); }
+  label.item input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+  .co { font-weight: 700; word-break: keep-all; }
+  .pos { color: var(--mute); font-size: 14px; margin-top: 2px; word-break: break-all; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, var(--bg) 70%, transparent);
+    padding: 16px; }
+  .bar .in { max-width: 520px; margin: 0 auto; }
+  button { width: 100%; height: 52px; border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-ink);
+    font-size: 16px; font-weight: 700; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: default; }
+  .hint { text-align: center; color: var(--mute); font-size: 13px; margin-top: 8px; min-height: 1em; }
+  .err { color: var(--err); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .note { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--mute); font-size: 13px; }
+  .note h2 { font-size: 14px; color: var(--ink); margin: 0 0 8px; }
+  .note ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  .note b { color: var(--ink); }
+  .note a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>입사(합격)하신 기업을 선택해 주세요</h1>
+  <p class="lead">아래는 1:1 메시지로 대화하셨던 기업이에요. 입사하셨거나 합격하신 곳을 모두 골라 주세요.</p>
+  <div id="list" class="list" role="group" aria-label="대화한 기업 목록"></div>
+  <section class="note" id="note" hidden>
+    <h2>보상금 안내</h2>
+    <ul>
+      <li>합격이 확인된 <b>기업마다 50만원</b>을 드려요. 2곳이면 100만원이에요. (제세공과금 공제 후 지급)</li>
+      <li>다음 화면에서 서류(건강보험 자격득실확인서, 통장 사본, 신분증 사본)를 제출해 주시면, 이상이 없을 경우 <b id="payDate"></b>에 등록하신 계좌로 한 번에 보내 드려요.</li>
+      <li>입사 후 90일 이내에 퇴사했거나, 리멤버가 아닌 다른 경로로 채용된 경우에는 지급되지 않아요.</li>
+      <li>아직 입사 90일이 지나지 않았다면 90일 이후에 지급돼요.</li>
+      <li>문의: <a href="mailto:career_success@remember.co.kr">career_success@remember.co.kr</a></li>
+    </ul>
+  </section>
+</main>
+<div class="bar" id="bar" hidden>
+  <div class="in">
+    <button id="next" type="button" disabled>다음</button>
+    <div class="hint" id="hint">하나 이상 선택해 주세요</div>
+  </div>
+</div>
+<script>
+/* ===== 설정: 이 세 줄만 바꾸면 됩니다 ===== */
+const WALLA_URL = 'https://walla.my/v/lTGWWCJNhhLwGVR7GRlc';  // 왈라폼 주소 ([연말 이벤트] 합격 보상금 신청)
+const FIELDS = { uid: 'uid', offers: 'offers', companies: 'companies' }; // 왈라폼 히든필드 이름
+const PAY_DATE = '12월 [N]일';                                // 일괄 지급일
+/* ======================================== */
+
+// 링크 형식: index.html#u=<user_id>&o=<토큰1>.<토큰2>...
+// 토큰 = base64url(UTF-8 JSON) — {"o":[[제안ID,"기업명","포지션"], ...]}
+function b64urlDecode(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+function parse() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  const uid = (p.get('u') || '').trim();
+  const offers = [];
+  const seen = new Set();
+  for (const t of (p.get('o') || '').split('.')) {
+    if (!t) continue;
+    try {
+      for (const [id, co, pos] of JSON.parse(b64urlDecode(t)).o || []) {
+        if (!seen.has(id)) { seen.add(id); offers.push({ id: String(id), co: String(co), pos: String(pos || '') }); }
+      }
+    } catch (e) { /* 깨진 토큰은 건너뜀 */ }
+  }
+  return { uid, offers };
+}
+function el(tag, attrs, text) {
+  const n = document.createElement(tag);
+  for (const k in attrs || {}) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+const { uid, offers } = parse();
+const list = document.getElementById('list');
+if (!/^\d+$/.test(uid) || offers.length === 0) {
+  list.appendChild(el('div', { class: 'err' }, '링크가 올바르지 않아요. 받으신 메시지의 링크를 다시 눌러 주세요.'));
+} else {
+  document.getElementById('bar').hidden = false;
+  document.getElementById('note').hidden = false;
+  document.getElementById('payDate').textContent = PAY_DATE;
+  for (const o of offers) {
+    const lab = el('label', { class: 'item' });
+    const cb = el('input', { type: 'checkbox', name: 'offer', value: o.id });
+    const box = el('div');
+    box.appendChild(el('div', { class: 'co' }, o.co));
+    if (o.pos) box.appendChild(el('div', { class: 'pos' }, o.pos));
+    lab.append(cb, box);
+    list.appendChild(lab);
+  }
+  const btn = document.getElementById('next');
+  const hint = document.getElementById('hint');
+  const picks = () => [...document.querySelectorAll('input[name=offer]:checked')];
+  function sync() {
+    const n = picks().length;
+    btn.disabled = !n;
+    hint.textContent = n ? n + '곳 선택했어요' : '하나 이상 선택해 주세요';
+  }
+  list.addEventListener('change', sync);
+  btn.addEventListener('click', () => {
+    const sel = picks();
+    const params = [
+      [FIELDS.uid, uid],
+      [FIELDS.offers, sel.map(c => c.value).join(',')],
+      [FIELDS.companies, sel.map(c => offers.find(o => o.id === c.value).co).join(' / ')],
+    ];
+    const q = params.map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+    location.href = WALLA_URL + (WALLA_URL.includes('?') ? '&' : '?') + q;
+  });
+}
+</script>
+</body>
+</html>
